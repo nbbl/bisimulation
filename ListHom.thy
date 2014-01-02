@@ -11,46 +11,36 @@ begin
 definition hom' :: "['a list \<Rightarrow> 'b, 'b \<Rightarrow> 'b \<Rightarrow> 'b] \<Rightarrow> bool" 
   where "hom' h b \<longleftrightarrow> (\<forall> xs ys. b (h xs) (h ys) = h (xs @ ys))"
 
-lemma hom'_b_lunit:
-  assumes h' : "hom' h b" 
-  and     x' : "x = h xs" 
-  and     e' : "e = h []"
-  shows   "b e x = x"
-  proof - 
-    have "b e x = b (h []) x" 
-      using e'  by simp
-    also have "... = b (h []) (h xs)" 
-      using x' by simp
-    also have "... = h ([] @ xs)" 
-      using h' by (simp only: hom'_def)
-    also have "... = h xs" 
-      by simp
-    also have "... = x" 
-      using x' by simp
-    finally show ?thesis .
+lemma hom'_lunit:
+  assumes "hom' h b" 
+  shows   "\<forall> x \<in> range h. b (h []) x = x"
+  proof
+    fix x 
+    assume "x \<in> range h"
+    then obtain y where * : "x = h y" ..
+    then have "b (h []) x = b (h []) (h y)" by simp
+    also have "... = h y" using assms by (simp add : hom'_def)
+    also have "... = x" using * by simp
+    finally show "b (h []) x = x" .
     qed
 
-
-lemma hom'_b_runit:
-  assumes h' : "hom' h b" 
-  and     x' : "x = h xs" 
-  and     e' : "e = h []"
-  shows   "b x e = x"
-  proof - 
-    have "b x e = b x (h [])" 
-      using e' by simp
-    also have "... = b (h xs) (h [])" 
-      using x' by simp
-    also have "... = h (xs @ [])" 
-      using h' by (simp only: hom'_def)
-    also have "... = h xs" 
-      by simp
-    also have "... = x" 
-      using x' by simp
-    finally show ?thesis .
+lemma hom'_runit:
+  assumes "hom' h b" 
+  shows   "\<forall> x \<in> range h. b x (h []) = x"
+  proof 
+    fix x 
+    assume "x \<in> range h"
+    then obtain y where * : "x = h y" ..
+    then have "b x (h []) = b (h y) (h [])" by simp
+    also have "... = h y" using assms by (simp add : hom'_def)
+    also have "... = x" using * by simp
+    finally show "b x (h []) = x" .
     qed
 
-lemma hom'_b_assoc:
+(*
+should be modelled with universal quantifier like the units:
+
+lemma hom'_assoc: 
   assumes h' : "hom' h b" 
   and     x' : "x = h xs" 
   and     y' : "y = h ys" 
@@ -71,6 +61,7 @@ lemma hom'_b_assoc:
     have "... = b x (b y z)" by (simp only: hom'_def)
     finally show ?thesis .
     qed
+*)
 
 fun wrap :: "'a \<Rightarrow> 'a list" 
   where "wrap x = [x]"
@@ -99,27 +90,49 @@ lemma wrap_inj:
     qed
 *)
 
-definition hom :: "['a list \<Rightarrow> 'b, 'b \<Rightarrow> 'b \<Rightarrow> 'b, 'a \<Rightarrow> 'b] \<Rightarrow> bool"
-  where "hom h b f \<longleftrightarrow> (hom' h b) \<and> (h \<circ> wrap = f)"
+definition hom :: "['a list \<Rightarrow> 'b, 'b \<Rightarrow> 'b \<Rightarrow> 'b, 'a \<Rightarrow> 'b, 'b] \<Rightarrow> bool"
+  where "hom h b f e \<longleftrightarrow> (hom' h b) \<and> (h \<circ> wrap = f) \<and> (h [] = e)"
+
+lemma hom_impl_hom': 
+  assumes "hom h b f e"
+  shows   "hom' h b"
+  proof -
+    from assms
+    show ?thesis
+      unfolding hom_def
+      by (rule conjE)
+    qed
 
 lemma hom_uniq:
-  assumes  h' : "hom h b f"
-  and      g' : "hom g b f"
+  assumes  h' : "hom h b f e"
+  and      g' : "hom g b f e"
   shows    "h = g"
-  proof -
-    from h'
-    have "h \<circ> wrap = f" 
-      by (simp only: hom_def)
-    also from g'
-    have "... = g \<circ> wrap" 
-      by (simp add: hom_def)
-    finally 
-    have "h \<circ> wrap = g \<circ> wrap" .
-    then have "h = g" oops
-(* needs proof of left cancellation of inj funs *)
-     
+  proof 
+    fix xs 
+    show "h xs = g xs"
+    proof (induct xs)
+      case Nil
+      thus ?case
+        using h' and g'
+        by (simp add: hom_def)
+    next
+      case (Cons x xs')
+      thus ?case
+      proof -
+        assume "h xs' = g xs'"
+        moreover have "h [x] = g [x]"
+        proof - 
+          have "f x = f x" by simp
+          also have "(h \<circ> wrap) x = (g \<circ> wrap) x"
+            using h' and g'
+            by (simp only: hom_def)
+          thus ?thesis by simp
+        qed
+        ultimately have "b (h [x]) (h xs') = b (g [x]) (g xs')" by simp
+        thus "h (x # xs') = g (x # xs')"  oops
+        
 lemma hom_impl_map:
-  assumes  "hom m (op @) (wrap \<circ> f)"
+  assumes  "hom m (op @) (wrap \<circ> f) e"
   shows    "m = map f"
   proof 
     fix xs
@@ -127,26 +140,16 @@ lemma hom_impl_map:
       proof (induct xs)
         case Nil 
         thus ?case          
-          proof -
-            have "m [] = m ([] @ [])" 
-              by simp 
-            also 
-            have "... = (m []) @ (m [])"
-            proof - (* this might be a candidate for an accessor *)
-              from assms
-              have "hom' m (op @)" 
-                unfolding hom_def
-                by (rule conjE)
-              thus ?thesis
-                unfolding hom'_def
-                by simp
-              qed 
-              thus ?thesis 
-                by simp
-          qed
+        proof -
+          have "m [] = m ([] @ [])" 
+            by simp 
+          also 
+          have "... = (m []) @ (m [])"
+            oops
 
 theorem fst_hom:
   assumes h' : "hom h b f"
   shows   "\<exists> r. hom r b id \<and> h = r \<circ> map f"
-          
+  oops
+
 end
