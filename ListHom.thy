@@ -42,21 +42,30 @@ lemma hom'_assoc:
   shows   "\<forall> xs \<in> range h. \<forall> ys \<in> range h. \<forall> zs \<in> range h. 
            b xs (b ys zs) = b (b xs ys) zs"
   proof - 
-    fix xs ys zs
-    assume "xs \<in> range h" 
-    then obtain xs' where 1 : "xs = h xs'" ..
-    assume "ys \<in> range h" 
-    then obtain ys' where 2 : "ys = h ys'" ..
-    assume "zs \<in> range h" 
-    then obtain zs' where 3 : "zs = h zs'" ..
-    from 1 2 3 and assms
-    have "b xs (b ys zs) = b (h xs') (h (ys' @ zs'))" by (simp only: hom'_def)
-    also have  "... = h (xs' @ ys' @ zs')" oops
+    {
+      fix xs ys zs
+      assume "xs \<in> range h"
+      then obtain xs' where 1 : "xs = h xs'" ..
+      assume "ys \<in> range h" 
+      then obtain ys' where 2 : "ys = h ys'" ..
+      assume "zs \<in> range h" 
+      then obtain zs' where 3 : "zs = h zs'" ..
+      have "b xs (b ys zs) = b (h xs') (h (ys' @ zs'))"
+        using 1 2 3 and assms by (simp only: hom'_def)
+      also have "... = h (xs' @ ys' @ zs')" 
+        using assms by (simp only: hom'_def)
+      also have "... = b (h (xs' @ ys')) (h zs')" 
+        using assms by (simp add: hom'_def)
+      finally have "b xs (b ys zs) = b (b xs ys) zs" 
+        using 1 2 3 and assms by (simp add: hom'_def)
+    }
+    thus ?thesis by simp
+    qed
 
 fun wrap :: "'a \<Rightarrow> 'a list" 
   where "wrap x = [x]"
 
-lemma wrap_inj: 
+lemma inj_wrap: 
   shows "inj wrap"
   proof (rule injI)
     fix x y
@@ -119,8 +128,8 @@ lemma hom_uniq:
       qed
     qed
   qed
-        
-lemma hom_app_eq_map:
+
+lemma hom_app_eq_map: (* inverse implication needs still to be shown *)
   assumes  "hom m (op @) (wrap \<circ> f) []"
   shows    "m = map f"
   proof 
@@ -133,13 +142,56 @@ lemma hom_app_eq_map:
           finally show "m [] = map f []" .
         qed
       next
-        case Cons thus ?case
+        case (Cons x xs') thus ?case
         proof -
-          oops
+          assume "m xs' = map f xs'"
+          moreover have "m [x] = map f [x]"
+          proof -
+            have "m [x] = (m \<circ> wrap) x" by simp
+            also have "... = (wrap \<circ> f) x" 
+              using assms by (simp add: hom_def)
+            also have "... = map f [x]" by simp
+            finally show "m [x] = map f [x]" .
+          qed
+          ultimately have "(m [x]) @ (m xs') = (map f [x]) @ (map f xs')" by simp
+          with hom_impl_hom' [OF assms] 
+          show "m (x # xs') = map f (x # xs')" by (simp add: hom'_def)
+        qed
+      qed
+    qed
 
-theorem fst_hom:
+primrec foldr' :: "('a \<Rightarrow> 'a \<Rightarrow> 'a) \<Rightarrow> 'a \<Rightarrow> 'a list \<Rightarrow> 'a"
+  where "foldr' b e []       = e"
+  |     "foldr' b e (x # xs) = b x (foldr' b e xs)" 
+
+
+(* this lemma would be an implication of snd_hom, 
+   if snd_hom can be proved without fst_hom *)
+lemma hom_foldr': 
+  shows "hom (foldr' b e) b id e"  
+  proof -
+    have "hom' (foldr' b e) b"
+    proof - 
+      oops
+      
+        (*        
+        moreover    
+        have "foldr' b e [] = e" by simp
+        moreover 
+        have "foldr' b e \<circ> wrap = id"
+        proof
+        fix x
+        have "(foldr' b e \<circ> wrap) x = foldr' b e [x]" by simp
+        also
+        have "... = b x e" by simp
+        also
+        have "... = x" by *)
+
+        (*ultimately have "hom (foldr' b e) b id e" by blast *)
+
+theorem fst_hom_foldr':
   assumes "hom h b f e"
-  shows   "\<exists> r. (hom r b id e) \<and> (h = r \<circ> map f)"
+  shows   "h = foldr' b e \<circ> map f"
   oops
 
 end
