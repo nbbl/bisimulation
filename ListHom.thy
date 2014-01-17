@@ -2,11 +2,12 @@ theory ListHom
 imports Main 
 begin
 
-(*
+text
+  {*
   This theory is an attempt to formalize the paper
   "Functional Pearls: The Third Homomorphism Theorem,
   J. Gibbons, 1995".
-*)
+  *}
 
 definition hom' :: "['a list \<Rightarrow> 'b, 'b \<Rightarrow> 'b \<Rightarrow> 'b] \<Rightarrow> bool" 
   where "hom' h b \<longleftrightarrow> (\<forall> xs ys. b (h xs) (h ys) = h (xs @ ys))"
@@ -129,7 +130,48 @@ lemma hom_uniq:
     qed
   qed
 
-lemma hom_app_eq_map: (* inverse implication needs still to be shown *)
+definition the_hom ::"['b \<Rightarrow> 'b \<Rightarrow> 'b, 'a \<Rightarrow> 'b, 'b] \<Rightarrow> ('a list \<Rightarrow> 'b)" 
+  where "the_hom b f e = (THE h. hom h b f e)"
+
+lemma the_uniq_hom:
+  assumes "hom h b f e"
+  shows   "the_hom b f e = h"
+  proof -
+    {
+      have "\<And> g. hom g b f e \<Longrightarrow> g = h"
+      proof -
+        fix g
+        assume "hom g b f e"
+        with assms 
+        show "g = h" by (rule hom_uniq [symmetric])
+      qed
+    }
+    thus ?thesis 
+      unfolding the_hom_def using assms by blast
+  qed
+
+lemma hom_map: 
+  shows "the_hom (op @) (wrap \<circ> f) [] = map f"  
+  proof -
+    have "hom' (map f) (op @)"
+      unfolding hom'_def by simp
+    moreover have "(map f) \<circ> wrap = wrap \<circ> f "
+    proof
+      fix x 
+      have "((map f) \<circ> wrap) x = [f x]" by simp
+      also have "... = (wrap \<circ> f) x" by simp
+      finally show "((map f) \<circ> wrap) x = (wrap \<circ> f) x" .
+    qed
+    moreover have "map f [] = []" by simp
+    ultimately have "hom (map f) (op @) (wrap \<circ> f) []"
+      unfolding hom_def by blast 
+    thus ?thesis by (rule the_uniq_hom)
+  qed
+
+(*      
+original version:
+
+lemma hom_app_eq_map: 
   assumes  "hom m (op @) (wrap \<circ> f) []"
   shows    "m = map f"
   proof 
@@ -159,39 +201,21 @@ lemma hom_app_eq_map: (* inverse implication needs still to be shown *)
         qed
       qed
     qed
+*)          
 
+theorem fst_hom:  
+  shows   "the_hom b f e = the_hom b id e \<circ> map f"
+  proof -
+    assume hom_h : "hom h b f e" 
+    and    hom_r : "hom r b id e"
+    have "h = r \<circ> map f"
+      proof 
+        oops
+    
 primrec foldr' :: "('a \<Rightarrow> 'a \<Rightarrow> 'a) \<Rightarrow> 'a \<Rightarrow> 'a list \<Rightarrow> 'a"
   where "foldr' b e []       = e"
   |     "foldr' b e (x # xs) = b x (foldr' b e xs)" 
-
-
-(* this lemma would be an implication of snd_hom, 
-   if snd_hom can be proved without fst_hom *)
-lemma hom_foldr': 
-  shows "hom (foldr' b e) b id e"  
-  proof -
-    have "hom' (foldr' b e) b"
-    proof - 
-      oops
-      
-        (*        
-        moreover    
-        have "foldr' b e [] = e" by simp
-        moreover 
-        have "foldr' b e \<circ> wrap = id"
-        proof
-        fix x
-        have "(foldr' b e \<circ> wrap) x = foldr' b e [x]" by simp
-        also
-        have "... = b x e" by simp
-        also
-        have "... = x" by *)
-
-        (*ultimately have "hom (foldr' b e) b id e" by blast *)
-
-theorem fst_hom_foldr':
-  assumes "hom h b f e"
-  shows   "h = foldr' b e \<circ> map f"
-  oops
+(* this function had been introduced for its type,
+   which differs from that of foldr *)
 
 end
