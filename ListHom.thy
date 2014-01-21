@@ -107,8 +107,7 @@ lemma hom_uniq:
   and      hom_g : "hom g b f e"
   shows    "h = g"
   proof 
-    fix xs 
-    show "h xs = g xs"
+    fix xs show "h xs = g xs"
     proof (induct xs)
       case Nil thus ?case
         using hom_h and hom_g by (simp add: hom_def)
@@ -130,12 +129,12 @@ lemma hom_uniq:
     qed
   qed
 
-definition the_hom ::"['b \<Rightarrow> 'b \<Rightarrow> 'b, 'a \<Rightarrow> 'b, 'b] \<Rightarrow> ('a list \<Rightarrow> 'b)" 
-  where "the_hom b f e = (THE h. hom h b f e)"
+definition uniq_hom ::"['b \<Rightarrow> 'b \<Rightarrow> 'b, 'a \<Rightarrow> 'b, 'b] \<Rightarrow> ('a list \<Rightarrow> 'b)" 
+  where "uniq_hom b f e = (SOME h. hom h b f e)"
 
-lemma the_uniq_hom:
+lemma hom_impl_uniq_hom:
   assumes "hom h b f e"
-  shows   "the_hom b f e = h"
+  shows   "uniq_hom b f e = h"
   proof -
     {
       have "\<And> g. hom g b f e \<Longrightarrow> g = h"
@@ -147,11 +146,11 @@ lemma the_uniq_hom:
       qed
     }
     thus ?thesis 
-      unfolding the_hom_def using assms by blast
+      unfolding uniq_hom_def using assms by blast
   qed
-
-lemma hom_map: 
-  shows "the_hom (op @) (wrap \<circ> f) [] = map f"  
+   
+lemma the_uniq_map: 
+  shows "uniq_hom (op @) (wrap \<circ> f) [] = map f"  
   proof -
     have "hom' (map f) (op @)"
       unfolding hom'_def by simp
@@ -165,7 +164,7 @@ lemma hom_map:
     moreover have "map f [] = []" by simp
     ultimately have "hom (map f) (op @) (wrap \<circ> f) []"
       unfolding hom_def by blast 
-    thus ?thesis by (rule the_uniq_hom)
+    thus ?thesis by (rule hom_impl_uniq_hom)
   qed
 
 (*      
@@ -203,15 +202,97 @@ lemma hom_app_eq_map:
     qed
 *)          
 
-theorem fst_hom:  
-  shows   "the_hom b f e = the_hom b id e \<circ> map f"
+theorem fst_hom_v2:
+  assumes "\<exists> h. hom h b f e"
+  and     "\<exists> r. hom r b id e"
+  shows   "uniq_hom b f e = uniq_hom b id e \<circ> map f"
   proof -
-    assume hom_h : "hom h b f e" 
-    and    hom_r : "hom r b id e"
+    from assms(1) obtain h where hom_h: "hom h b f e" ..
+    from assms(2) obtain r where hom_r: "hom r b id e" ..
     have "h = r \<circ> map f"
-      proof 
-        oops
-    
+      proof
+        fix xs show "h xs = (r \<circ> map f) xs"  
+        proof (induct xs)
+          case Nil thus ?case
+          proof -
+            have "h [] = e" 
+              using hom_h unfolding hom_def by simp
+            also have "... = (r \<circ> map f) []" 
+              using hom_r unfolding hom_def by simp
+            finally show ?thesis .
+          qed
+        next
+          case (Cons x xs') note ih = Cons thus ?case
+          proof -
+            {
+              have  "h [x] = (r \<circ> map f) [x]"
+              proof -
+                have "h [x] = (h \<circ> wrap) x" by simp
+                also have "... = f x"
+                  using hom_h unfolding hom_def by simp
+                also have "... = (r \<circ> wrap) (f x)"
+                  using hom_r unfolding hom_def by simp
+                finally show ?thesis by simp
+              qed
+            }
+            note single_eq = this
+            have "h (x # xs') = b (h [x]) (h xs')" 
+              using hom_impl_hom'[OF hom_h] by (simp add: hom'_def)
+            also have "... = b ((r \<circ> map f) [x]) ((r \<circ> map f) xs')" 
+              using ih and single_eq by simp               
+            also have "... = r (map f [x] @ map f xs')"
+              using hom_impl_hom'[OF hom_r] by (simp add: hom'_def)
+            finally show ?thesis by simp
+          qed
+        qed
+      qed
+      thus ?thesis
+        using hom_impl_uniq_hom[OF hom_h] and hom_impl_uniq_hom[OF hom_r] by simp  
+    qed
+
+(*
+theorem fst_hom_v1:
+  assumes hom_h : "hom h b f e"
+  and     hom_r : "hom r b id e" (* <-- is this a necessary assumption? *)
+  shows   "h = r \<circ> map f"
+  proof 
+    fix xs show "h xs = (r \<circ> map f) xs"  
+    proof (induct xs)
+      case Nil thus ?case
+      proof -
+        have "h [] = e" 
+          using hom_h unfolding hom_def by simp
+        also have "... = (r \<circ> map f) []" 
+          using hom_r unfolding hom_def by simp
+        finally show ?thesis .
+      qed
+    next
+      case (Cons x xs') note ih = Cons thus ?case
+      proof -
+        {
+          have  "h [x] = (r \<circ> map f) [x]"
+          proof -
+            have "h [x] = (h \<circ> wrap) x" by simp
+            also have "... = f x"
+              using hom_h unfolding hom_def by simp
+            also have "... = (r \<circ> wrap) (f x)"
+              using hom_r unfolding hom_def by simp
+            finally show ?thesis by simp
+          qed
+        }
+        note single_eq = this
+        have "h (x # xs') = b (h [x]) (h xs')" 
+          using hom_impl_hom'[OF hom_h] by (simp add: hom'_def)
+        also have "... = b ((r \<circ> map f) [x]) ((r \<circ> map f) xs')" 
+          using ih and single_eq by simp               
+        also have "... = r (map f [x] @ map f xs')"
+          using hom_impl_hom'[OF hom_r] by (simp add: hom'_def)
+        finally show ?thesis by simp
+      qed
+    qed
+  qed
+*)
+
 primrec foldr' :: "('a \<Rightarrow> 'a \<Rightarrow> 'a) \<Rightarrow> 'a \<Rightarrow> 'a list \<Rightarrow> 'a"
   where "foldr' b e []       = e"
   |     "foldr' b e (x # xs) = b x (foldr' b e xs)" 
